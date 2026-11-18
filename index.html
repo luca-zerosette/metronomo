@@ -16,11 +16,14 @@
   body {
     margin:0; min-height:100dvh; background:var(--bg); color:var(--fg);
     font-family:-apple-system, system-ui, sans-serif;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;
-    padding: calc(env(safe-area-inset-top) + 64px) 20px env(safe-area-inset-bottom);
+    display:flex; flex-direction:column; align-items:center;
+    padding: calc(env(safe-area-inset-top) + 64px) 20px calc(env(safe-area-inset-bottom) + 24px);
     user-select:none; -webkit-user-select:none;
   }
-  #bpm { font-size:96px; font-weight:200; font-variant-numeric:tabular-nums; line-height:1; }
+  /* margin:auto centra la vista, ma se è più alta dello schermo si può scorrere senza tagliare l'inizio */
+  .view { display:flex; flex-direction:column; align-items:center; gap:24px; width:100%; margin:auto 0; }
+  .hidden { display:none !important; }
+  #bpm { font-size:96px; font-weight:200; font-variant-numeric:tabular-nums; line-height:1; text-align:center; }
   #bpmLabel { opacity:.6; letter-spacing:.2em; font-size:14px; text-align:center; }
   .row { display:flex; align-items:center; gap:16px; width:100%; max-width:380px; }
   input[type=range] { flex:1; accent-color:var(--accent); height:40px; }
@@ -29,12 +32,26 @@
     color:var(--fg); font-size:28px;
   }
   button.round:active { background:#555; }
-  #beats { display:flex; gap:12px; height:28px; }
+  #beats { display:flex; gap:12px; height:24px; }
   .dot { width:24px; height:24px; border-radius:50%; background:var(--dim); transition:background .05s; }
   .dot.on { background:var(--accent); }
   .dot.accent.on { background:#fff; }
+
+  /* Metronomo visivo: una pallina che oscilla come l'asta di un metronomo
+     e tocca i bordi esattamente sul battito */
+  #pend { position:relative; width:100%; max-width:340px; height:44px; }
+  #pend::before { content:''; position:absolute; left:22px; right:22px; top:21px; height:2px; background:var(--dim); }
+  #pend .end { position:absolute; top:8px; width:4px; height:28px; border-radius:2px; background:var(--dim); }
+  #pend .end.l { left:20px; } #pend .end.r { right:20px; }
+  #ball {
+    position:absolute; top:4px; left:0; width:36px; height:36px; border-radius:50%;
+    background:var(--accent); opacity:.55; will-change:transform;
+  }
+  #ball.flash { opacity:1; box-shadow:0 0 24px var(--accent); }
+  #ball.flash.accent { background:#fff; box-shadow:0 0 28px #fff; }
+
   #play {
-    width:140px; height:140px; border-radius:50%; border:0;
+    width:130px; height:130px; border-radius:50%; border:0;
     background:var(--accent); color:#000; font-size:22px; font-weight:600;
   }
   #play.running { background:#ff453a; color:#fff; }
@@ -42,8 +59,10 @@
   #tabs { display:flex; gap:8px; position:absolute; top:calc(env(safe-area-inset-top) + 12px); }
   #tabs button { background:var(--dim); color:var(--fg); border:0; border-radius:20px; padding:8px 14px; font-size:15px; }
   #tabs button.active { background:var(--accent); color:#000; }
-  .view { display:flex; flex-direction:column; align-items:center; gap:28px; width:100%; }
-  .hidden { display:none; }
+  #tap { background:var(--dim); color:var(--fg); border:0; border-radius:12px; padding:12px 24px; font-size:17px; touch-action:manipulation; }
+  .toggle { border:0; border-radius:20px; padding:10px 18px; font-size:16px; background:var(--dim); color:#999; }
+  .toggle.on { background:#2c2c2e; color:var(--fg); box-shadow:inset 0 0 0 2px var(--accent); }
+
   #note { font-size:110px; font-weight:200; line-height:1; }
   #freq, #cents { opacity:.6; font-size:16px; text-align:center; }
   #meter { position:relative; width:100%; max-width:340px; height:44px; background:var(--dim); border-radius:22px; overflow:hidden; }
@@ -55,48 +74,68 @@
   .str.near { background:var(--accent); color:#000; }
   #mic { width:200px; height:64px; border-radius:32px; border:0; background:var(--accent); color:#000; font-size:17px; font-weight:600; }
   #mic.running { background:#ff453a; color:#fff; }
-  #trackerView { gap:14px; }
-  #trkStatus { text-align:center; opacity:.8; font-size:16px; min-height:40px; max-width:340px; }
-  #trkTap { width:130px; height:130px; border-radius:50%; border:0; background:var(--accent); color:#000; font-size:22px; font-weight:600; touch-action:manipulation; }
-  #trkTap:disabled { background:var(--dim); color:#777; }
-  #trkDev { font-size:64px; font-weight:200; line-height:1; font-variant-numeric:tabular-nums; }
+
+  #trkPanel { display:flex; flex-direction:column; align-items:center; gap:14px; width:100%; padding-top:8px; border-top:1px solid #2c2c2e; }
+  #trkStatus { text-align:center; opacity:.8; font-size:15px; min-height:20px; max-width:340px; }
+  #trkDev { font-size:56px; font-weight:200; line-height:1; font-variant-numeric:tabular-nums; }
   #trkDev.good { color:#30d158; }
-  #trkStats { white-space:pre-line; text-align:center; opacity:.7; font-size:15px; min-height:64px; }
-  #trkChart { width:340px; height:150px; background:#1c1c1e; border-radius:12px; }
-  #trkStart, #trkReset { border:0; border-radius:12px; padding:12px 22px; font-size:17px; font-weight:600; background:var(--dim); color:var(--fg); }
-  #trkStart.running { background:#ff453a; }
+  #trkStats { white-space:pre-line; text-align:center; opacity:.7; font-size:15px; min-height:44px; }
+  #trkChart { width:100%; max-width:340px; aspect-ratio:340/150; height:auto; background:#1c1c1e; border-radius:12px; }
+  #trkReset { border:0; border-radius:12px; padding:10px 20px; font-size:16px; background:var(--dim); color:var(--fg); }
   .level { width:100%; max-width:340px; height:8px; background:var(--dim); border-radius:4px; overflow:hidden; }
   .level > div { height:100%; width:0; background:#30d158; transition:width .08s; }
-  #tap { background:var(--dim); color:var(--fg); border:0; border-radius:12px; padding:12px 24px; font-size:17px; }
+  .lbl { opacity:.6; font-size:14px; width:120px; }
 </style>
 </head>
 <body>
   <div id="tabs">
     <button id="tabMetro" class="active">Metronomo</button>
     <button id="tabTuner">Accordatore</button>
-    <button id="tabTracker">Tracker</button>
   </div>
 
   <div class="view" id="metroView">
-  <div>
-    <div id="bpm">120</div>
-    <div id="bpmLabel">BPM</div>
-  </div>
+    <div>
+      <div id="bpm">120</div>
+      <div id="bpmLabel">BPM</div>
+    </div>
 
-  <div class="row">
-    <button class="round" id="minus">−</button>
-    <input type="range" id="slider" min="30" max="250" value="120">
-    <button class="round" id="plus">+</button>
-  </div>
+    <div class="row">
+      <button class="round" id="minus">−</button>
+      <input type="range" id="slider" min="30" max="250" value="120">
+      <button class="round" id="plus">+</button>
+    </div>
 
-  <div class="row" style="justify-content:center">
-    <label>Tempo <select id="sig"></select></label>
-    <button id="tap">TAP</button>
-  </div>
+    <div class="row" style="justify-content:center">
+      <label>Tempo <select id="sig"></select></label>
+      <button id="tap">TAP</button>
+    </div>
 
-  <div id="beats"></div>
+    <div id="pend"><div class="end l"></div><div class="end r"></div><div id="ball"></div></div>
+    <div id="beats"></div>
 
-  <button id="play">START</button>
+    <div class="row" style="justify-content:center">
+      <button id="soundBtn" class="toggle on">🔊 Suono</button>
+      <button id="trkBtn" class="toggle">🎤 Tracker</button>
+    </div>
+
+    <button id="play">START</button>
+
+    <div id="trkPanel" class="hidden">
+      <div id="trkStatus"></div>
+      <div class="level" title="Livello del microfono"><div id="trkLevel"></div></div>
+      <div id="trkDev">–</div>
+      <canvas id="trkChart"></canvas>
+      <div id="trkStats"></div>
+      <div class="row">
+        <span class="lbl">Sensibilità</span>
+        <input type="range" id="trkSens" min="1" max="10" value="5">
+      </div>
+      <div class="row">
+        <span class="lbl">Finestra <span id="trkWinVal">30%</span></span>
+        <input type="range" id="trkWin" min="10" max="50" step="5" value="30">
+      </div>
+      <button id="trkReset">AZZERA STATISTICHE</button>
+    </div>
   </div>
 
   <div class="view hidden" id="tunerView">
@@ -112,27 +151,6 @@
     <button id="mic">ATTIVA MICROFONO</button>
   </div>
 
-  <div class="view hidden" id="trackerView">
-    <div id="trkStatus"></div>
-    <div class="level" title="Livello del microfono"><div id="trkLevel"></div></div>
-    <button id="trkTap" disabled>TAP 0/8</button>
-    <div id="trkDev">–</div>
-    <canvas id="trkChart"></canvas>
-    <div id="trkStats"></div>
-    <div class="row">
-      <span style="opacity:.6;font-size:14px;width:120px">Sensibilità</span>
-      <input type="range" id="trkSens" min="1" max="10" value="5">
-    </div>
-    <div class="row">
-      <span style="opacity:.6;font-size:14px;width:120px">Finestra <span id="trkWinVal">30%</span></span>
-      <input type="range" id="trkWin" min="10" max="50" step="5" value="30">
-    </div>
-    <div class="row" style="justify-content:center">
-      <button id="trkStart">AVVIA</button>
-      <button id="trkReset">RICOMINCIA</button>
-    </div>
-  </div>
-
 <script>
 /* ---------------------------------------------------------------
    METRONOMO - spiegazione didattica
@@ -145,19 +163,25 @@
    - Un timer JS impreciso gira spesso (ogni 25 ms) e guarda un po'
      in avanti (100 ms): tutti i click che cadono in quella finestra
      vengono PROGRAMMATI sull'orologio audio con un tempo esatto.
+   - Gli stessi tempi esatti servono alla grafica (pallini e pendolo)
+     e al tracker, che confronta le tue pennate con questi battiti.
 --------------------------------------------------------------- */
 
 let ctx = null;            // AudioContext (si crea al primo tocco: regola iOS)
 let bpm = 120;
 let beatsPerBar = 4;
 let running = false;
-let nextNoteTime = 0;      // quando suonerà il prossimo click (tempo audio)
+let soundOn = true;        // false = metronomo solo visivo (silenzioso)
+let nextNoteTime = 0;      // quando suonerà il prossimo battito (tempo audio)
+let nextK = 0;             // numero progressivo del prossimo battito
 let currentBeat = 0;       // 0..beatsPerBar-1
 let timerId = null;
 let wakeLock = null;
 const LOOKAHEAD_MS = 25;       // ogni quanto gira lo scheduler
 const SCHEDULE_AHEAD_S = 0.1;  // quanto avanti programmiamo
-const visualQueue = [];        // {beat, time} per sincronizzare i pallini
+const visualQueue = [];        // {beat, k, time} per sincronizzare la grafica
+const beatLog = [];            // ultimi battiti programmati {k, time}: la griglia del tracker
+let lastBeat = null;           // ultimo battito mostrato (per il pendolo)
 
 const $ = id => document.getElementById(id);
 
@@ -177,22 +201,47 @@ function playClick(time, accent) {
 function scheduler() {
   while (nextNoteTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
     const accent = currentBeat === 0;
-    playClick(nextNoteTime, accent);
-    visualQueue.push({ beat: currentBeat, time: nextNoteTime });
+    if (soundOn) playClick(nextNoteTime, accent);
+    visualQueue.push({ beat: currentBeat, k: nextK, time: nextNoteTime });
+    beatLog.push({ k: nextK, time: nextNoteTime });
+    if (beatLog.length > 16) beatLog.shift();
     nextNoteTime += 60 / bpm;                       // durata di un battito
+    nextK++;
     currentBeat = (currentBeat + 1) % beatsPerBar;
   }
 }
 
-// --- Grafica: si aggiorna ad ogni frame, accende il pallino giusto ----
+// --- Grafica: si aggiorna ad ogni frame ------------------------------
 function draw() {
-  while (visualQueue.length && visualQueue[0].time <= ctx.currentTime) {
-    highlight(visualQueue.shift().beat);
+  if (!running) return;
+  const now = ctx.currentTime;
+  while (visualQueue.length && visualQueue[0].time <= now) {
+    lastBeat = visualQueue.shift();
+    highlight(lastBeat.beat);
   }
-  if (running) requestAnimationFrame(draw);
+  drawPendulum(now);
+  requestAnimationFrame(draw);
 }
 function highlight(beat) {
   [...$('beats').children].forEach((d, i) => d.classList.toggle('on', i === beat));
+}
+// Pendolo: in un battito la pallina va da un bordo all'altro con il moto
+// di un pendolo (lenta ai bordi, veloce al centro) e tocca il bordo SUL
+// battito. Così vedi arrivare il battito e puoi anticiparlo, invece di
+// reagire a un lampo.
+function drawPendulum(now) {
+  const ball = $('ball'), W = $('pend').clientWidth - ball.offsetWidth;
+  let x = 0, flash = false, accent = false;
+  if (lastBeat) {
+    const f = Math.min(1, Math.max(0, (now - lastBeat.time) / (60 / bpm)));
+    const p = (1 - Math.cos(Math.PI * f)) / 2;
+    x = lastBeat.k % 2 ? 1 - p : p;
+    flash = now - lastBeat.time < 0.1;
+    accent = lastBeat.beat === 0;
+  }
+  ball.style.transform = 'translateX(' + (x * W).toFixed(1) + 'px)';
+  ball.classList.toggle('flash', flash);
+  ball.classList.toggle('accent', flash && accent);
 }
 
 // --- Start / Stop ----------------------------------------------------
@@ -200,19 +249,24 @@ async function start() {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
   await ctx.resume();                // iOS: serve un gesto dell'utente
   running = true;
+  $('play').textContent = 'STOP';
+  $('play').classList.add('running');
+  if (trkOn) await startTracker();   // il microfono usa lo stesso orologio del metronomo
+  if (!running) return;              // fermato mentre si apriva il microfono
   currentBeat = 0;
   nextNoteTime = ctx.currentTime + 0.05;
   timerId = setInterval(scheduler, LOOKAHEAD_MS);
   requestAnimationFrame(draw);
-  $('play').textContent = 'STOP';
-  $('play').classList.add('running');
   try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
 }
 function stop() {
   running = false;
   clearInterval(timerId);
   visualQueue.length = 0;
+  lastBeat = null;
   highlight(-1);
+  drawPendulum(0);
+  stopTracker();
   $('play').textContent = 'START';
   $('play').classList.remove('running');
   wakeLock?.release(); wakeLock = null;
@@ -223,6 +277,7 @@ function setBpm(v) {
   bpm = Math.max(30, Math.min(250, Math.round(v)));
   $('bpm').textContent = bpm;
   $('slider').value = bpm;
+  drawChart();
 }
 function buildBeats() {
   $('beats').innerHTML = '';
@@ -256,6 +311,14 @@ $('tap').onclick = () => {
     setBpm(60000 / avg);
   }
 };
+
+function setSound(on) {
+  soundOn = on;
+  $('soundBtn').classList.toggle('on', on);
+  $('soundBtn').textContent = on ? '🔊 Suono' : '🔇 Muto';
+  trkHint();
+}
+$('soundBtn').onclick = () => setSound(!soundOn);
 
 // Se la pagina torna visibile, riprende il wake lock
 document.addEventListener('visibilitychange', async () => {
@@ -407,34 +470,27 @@ function stopTuner() {
 $('mic').onclick = () => tunerRunning ? stopTuner() : startTuner();
 
 /* ---------------------------------------------------------------
-   TRACKER - spiegazione didattica
+   TRACKER (dentro il metronomo) - spiegazione didattica
 
-   1. Fase TAP: tocchi 8 volte il ritmo che vuoi tenere. Dagli 8 tocchi
-      ricaviamo il periodo T (secondi per battito) e una GRIGLIA di
-      battiti attesi:  t0 + k*T  (k = 0, 1, 2, ...).
-   2. Fase ASCOLTO: un AudioWorklet (codice che gira sul thread audio,
-      quindi con tempi precisi) ascolta il microfono e segnala i COLPI:
-      un colpo è un aumento improvviso di energia. Per esaltare
-      l'attacco si usa la differenza tra campioni consecutivi.
-   3. Due griglie, due compiti diversi:
-      - GRIGLIA ADATTIVA (segue il tuo tempo reale): serve solo a
-        decidere A QUALE battito appartiene un colpo. Parte dal
-        periodo T degli 8 tap e si aggiorna con la mediana degli
-        ultimi periodi misurati, così non perdiamo i colpi se
-        acceleri o rallenti. Si tengono solo i colpi entro ±30% di
-        battito dall'atteso adattivo; gli altri (rumori, note di
-        contorno, suddivisioni) vengono ignorati.
-      - GRIGLIA FISSA (quella degli 8 tap): serve a misurare l'ERRORE.
-           d = t - (t0 + k*T)
-        Se accelero, d diventa sempre più negativo; se rallento,
-        sempre più positivo: la deriva si vede direttamente.
-   4. Mostriamo l'errore in ms (+ = in ritardo, - = in anticipo),
-      media, deviazione standard (la tua stabilità) e i BPM attuali
-      (dalla griglia adattiva) rispetto alla base.
-   5. BATTITI VUOTI: se per un battito non arriva nessun colpo valido
-      (battuta di pausa) lo registriamo con errore 0, così una pausa
-      non conta come errore. La larghezza della finestra del gate si
-      regola con lo slider "Finestra" (10-50% di battito).
+   1. La GRIGLIA è quella del metronomo: i battiti programmati dallo
+      scheduler hanno un tempo esatto sull'orologio audio. Il tempo lo
+      scegli con slider o TAP; puoi tenere il metronomo muto e seguire
+      solo il pendolo.
+   2. Un AudioWorklet (codice che gira sul thread audio, quindi con
+      tempi precisi) ascolta il microfono sullo STESSO AudioContext e
+      segnala gli ATTACCHI (le pennate).
+   3. Ogni colpo viene assegnato al battito più vicino:
+           d = t_colpo - t_battito      (+ = in ritardo, - = in anticipo)
+      Si tengono solo i colpi entro la "Finestra" (±30% di battito di
+      default) e uno solo per battito; gli altri (suddivisioni, rumori)
+      vengono contati come ignorati.
+   4. BATTITI VUOTI: se un battito passa senza colpi validi (pausa) lo
+      registriamo con errore 0, così una pausa non conta come errore.
+      Si comincia a contare dal primo colpo valido.
+   5. LATENZA: il suono arriva al worklet in ritardo (latenza di ingresso
+      del microfono); se il browser la dichiara la sottraiamo. Con il
+      click acceso il battito lo senti in ritardo della latenza di uscita,
+      e anche quella viene compensata.
 --------------------------------------------------------------- */
 /* Rilevatore di ATTACCHI (pennate), non di "suono forte":
    - Ogni blocco (128 campioni, ~3 ms) misura l'energia del segnale derivato:
@@ -474,111 +530,99 @@ class OnsetProc extends AudioWorkletProcessor {
 }
 registerProcessor('onset', OnsetProc);`;
 
-let WINDOW = 0.3;       // configurabile con lo slider "Finestra"                      // frazione di battito entro cui un colpo è "atteso"
-let trkCtx = null, trkStream = null, trkNode = null;
-// T, t0: griglia FISSA (dai tap). Tm, lastK, lastT, pers: griglia ADATTIVA.
+let trkOn = false;              // tracker attivato con il pulsante 🎤
+let WINDOW = 0.3;               // frazione di battito entro cui un colpo è "atteso" (slider Finestra)
+let trkStream = null, trkNode = null, trkMute = null, workletCtx = null;
 let trkLevelTimer = null;
-let trkTimer = null;    // controlla periodicamente i battiti rimasti vuoti
-let trk = { phase: 'idle', taps: [], T: 0, t0: 0, Tm: 0, lastK: 7, lastT: 0, pers: [], pts: [], ignored: 0, missed: 0, started: false };
+let trkTimer = null;            // controlla periodicamente i battiti rimasti vuoti
+let micLatency = 0;             // latenza di ingresso dichiarata dal browser (s)
+let trk = { pts: [], ignored: 0, missed: 0, lastK: -1, started: false };
 
-const median = a => {
-  const s = [...a].sort((x, y) => x - y), m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
+function trkHint() {
+  if (!trkOn) return;
+  $('trkStatus').textContent = soundOn
+    ? 'Click acceso: usa le cuffie, altrimenti il microfono sente il click'
+    : running ? 'Suona seguendo il pendolo' : 'Premi START e suona seguendo il pendolo';
+}
 
-function trkReset(phase) {
-  clearInterval(trkTimer);
-  trk = { phase, taps: [], T: 0, t0: 0, Tm: 0, lastK: 7, lastT: 0, pers: [], pts: [], ignored: 0, missed: 0, started: false };
-  $('trkTap').disabled = phase !== 'tap';
-  $('trkTap').textContent = 'TAP 0/8';
-  $('trkStatus').textContent = phase === 'tap'
-    ? 'Tocca 8 volte il ritmo che vuoi tenere'
-    : 'Premi AVVIA per usare il microfono';
+function trkResetStats() {
+  trk = { pts: [], ignored: 0, missed: 0, lastK: -1, started: false };
   $('trkDev').textContent = '–';
   $('trkDev').className = '';
   $('trkStats').textContent = '';
   drawChart();
 }
 
-// Tap: pointerdown reagisce subito al tocco (click aspetta il rilascio)
-$('trkTap').onpointerdown = () => {
-  if (trk.phase !== 'tap' || !trkCtx) return;
-  const t = trkCtx.currentTime;            // stesso orologio dei colpi del microfono
-  if (trk.taps.length && t - trk.taps[trk.taps.length - 1] > 2.5) trk.taps = [];
-  trk.taps.push(t);
-  $('trkTap').textContent = 'TAP ' + trk.taps.length + '/8';
-  if (trk.taps.length === 8) {
-    const n = trk.taps;
-    trk.T = (n[7] - n[0]) / 7;                                   // periodo medio
-    trk.t0 = n.reduce((s, t, i) => s + t - i * trk.T, 0) / 8;    // fase media della griglia
-    trk.Tm = trk.T;                         // la griglia adattiva parte uguale a quella fissa
-    trk.lastK = 7;                          // ancora: l'ultimo tap (battito 7)
-    trk.lastT = trk.t0 + 7 * trk.T;
-    trk.phase = 'listen';
-    // Ogni 50 ms controlla se un battito è passato senza colpi (grazia di 80 ms per il ritardo dei messaggi)
-    trkTimer = setInterval(() => {
-      if (trk.phase === 'listen' && trkCtx && advanceMisses(trkCtx.currentTime - 0.08)) trkUpdate();
-    }, 50);
-    $('trkTap').disabled = true;
-    $('trkStatus').textContent = 'Base: ' + (60 / trk.T).toFixed(1) + ' BPM. Ora suona!';
+$('trkBtn').onclick = () => {
+  trkOn = !trkOn;
+  $('trkBtn').classList.toggle('on', trkOn);
+  $('trkPanel').classList.toggle('hidden', !trkOn);
+  if (trkOn) {
+    setSound(false);                 // di default silenzioso: il click disturberebbe il microfono
+    if (running) startTracker();
+  } else {
+    stopTracker();
   }
+  trkHint();
+  drawChart();
 };
 
-// Battiti VUOTI (battute di pausa): se è passato un battito atteso più la finestra
-// senza nessun colpo valido, lo registriamo con errore nullo (0 ms) e avanziamo la
-// griglia adattiva. Si parte solo dopo il primo colpo valido, così hai il tempo
-// di cominciare a suonare dopo gli 8 tap.
-function advanceMisses(now) {
+// Il battito "teorico" per un colpo: dai battiti già programmati più quelli
+// che arriveranno (un colpo in anticipo può precedere la programmazione).
+function nearestBeat(t) {
+  const T = 60 / bpm;
+  const cands = [...beatLog, { k: nextK, time: nextNoteTime }, { k: nextK + 1, time: nextNoteTime + T }];
+  let best = cands[0];
+  for (const c of cands) if (Math.abs(t - c.time) < Math.abs(t - best.time)) best = c;
+  return best;
+}
+// Con il click acceso il battito si SENTE dopo la latenza di uscita
+const heardOffset = () => soundOn ? (ctx.outputLatency || ctx.baseLatency || 0) : 0;
+
+// Battiti VUOTI: chiude i battiti passati da più della finestra senza colpi
+function closeMisses(now) {
   if (!trk.started) return false;
+  const W = WINDOW * 60 / bpm, off = heardOffset();
   let changed = false;
-  while (now > trk.lastT + trk.Tm * (1 + WINDOW)) {
-    const k = trk.lastK + 1, ea = trk.lastT + trk.Tm;
-    trk.pts.push({ k, t: ea, d: 0, missed: true });
-    trk.missed++;
-    trk.lastK = k; trk.lastT = ea;
-    changed = true;
+  for (const b of beatLog) {
+    if (b.k > trk.lastK && b.time + off + W < now) {
+      trk.pts.push({ k: b.k, d: 0, missed: true });
+      trk.missed++; trk.lastK = b.k; changed = true;
+    }
   }
   return changed;
 }
 
-function onOnset(t) {
-  if (trk.phase !== 'listen') return;
-  advanceMisses(t);                        // prima chiudi i battiti vuoti precedenti a questo colpo
-  // 1) A quale battito appartiene? Si guarda la griglia ADATTIVA, ancorata all'ultimo colpo valido.
-  const k = trk.lastK + Math.round((t - trk.lastT) / trk.Tm);
-  if (k <= trk.lastK) {                    // stesso battito di prima (o rumore dei tap): scarta
-    if (trk.pts.length) { trk.ignored++; trkUpdate(); }
+function onOnset(tRaw) {
+  if (!running || !trkOn) return;
+  const t = tRaw - micLatency;
+  closeMisses(t);
+  const b = nearestBeat(t - heardOffset());
+  const d = t - heardOffset() - b.time;
+  if (b.k <= trk.lastK || Math.abs(d) > WINDOW * 60 / bpm) {   // battito già contato o fuori finestra
+    if (trk.started) { trk.ignored++; trkUpdate(); }
     return;
   }
-  const expected = trk.lastT + (k - trk.lastK) * trk.Tm;
-  if (Math.abs(t - expected) > WINDOW * trk.Tm) { trk.ignored++; trkUpdate(); return; }
-  // 2) Colpo valido: l'ERRORE si misura sulla griglia FISSA (quella degli 8 tap)
-  const d = t - (trk.t0 + k * trk.T);
-  trk.pts.push({ k, t, d: d * 1000 });
+  trk.pts.push({ k: b.k, d: d * 1000 });
+  trk.lastK = b.k;
   trk.started = true;
-  // 3) Aggiorna la griglia adattiva: mediana degli ultimi 5 periodi per battito
-  trk.pers.push((t - trk.lastT) / (k - trk.lastK));
-  trk.Tm = median(trk.pers.slice(-5));
-  trk.lastK = k; trk.lastT = t;
   trkUpdate();
 }
 
 function trkUpdate() {
   const P = trk.pts;
   if (P.length) {
-    const last = P[P.length - 1].d;
-    $('trkDev').textContent = (last > 0 ? '+' : '') + last.toFixed(0) + ' ms';
-    $('trkDev').className = Math.abs(last) < 25 ? 'good' : '';
+    const last = P[P.length - 1];
+    if (!last.missed) {
+      $('trkDev').textContent = (last.d > 0 ? '+' : '') + last.d.toFixed(0) + ' ms';
+      $('trkDev').className = Math.abs(last.d) < 25 ? 'good' : '';
+    }
     const ds = P.map(p => p.d);
     const mean = ds.reduce((a, b) => a + b, 0) / ds.length;
     const sd = Math.sqrt(ds.reduce((a, b) => a + (b - mean) ** 2, 0) / ds.length);
-    let bpmTxt = '';
-    if (P.length > 1) {
-      const bpm = 60 / trk.Tm, base = 60 / trk.T;     // BPM dalla griglia adattiva
-      bpmTxt = '\nBPM attuale: ' + bpm.toFixed(1) + ' (' + ((bpm / base - 1) * 100).toFixed(1) + '% rispetto alla base)';
-    }
+    const trend = Math.abs(mean) < 10 ? 'in tempo' : mean > 0 ? 'tendi a ritardare' : 'tendi ad anticipare';
     $('trkStats').textContent = 'Colpi validi: ' + (P.length - trk.missed) + ' · vuoti: ' + trk.missed + ' · ignorati: ' + trk.ignored +
-      '\nErrore medio: ' + mean.toFixed(0) + ' ms · Dev. std: ' + sd.toFixed(0) + ' ms' + bpmTxt;
+      '\nErrore medio: ' + mean.toFixed(0) + ' ms (' + trend + ') · Dev. std: ' + sd.toFixed(0) + ' ms';
   } else {
     $('trkStats').textContent = 'Colpi ignorati: ' + trk.ignored;
   }
@@ -591,9 +635,8 @@ function drawChart() {
   if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, W, H);
-  // ms sui bordi: almeno ±30% di battito, ma si allarga se la deriva fa crescere l'errore
-  const shown = trk.pts.slice(-40);
-  const range = Math.max(trk.T ? WINDOW * trk.T * 1000 : 150, ...shown.map(p => Math.abs(p.d) * 1.1));
+  // bordi = la finestra del gate (±WINDOW di battito)
+  const range = WINDOW * 60 / bpm * 1000;
   const y = ms => H / 2 - ms / range * (H / 2 - 8);
   g.lineWidth = 1;
   g.strokeStyle = '#555';
@@ -618,8 +661,7 @@ function drawChart() {
 }
 
 // Soglia assoluta sul segnale DERIVATO (che attenua molto le basse frequenze):
-// scala logaritmica da 0.005 (sens 1) a ~0.00005 (sens 10). Il rumore di fondo
-// è già filtrato dal confronto con la media lenta (rms > 3 * slow) nel worklet.
+// scala logaritmica da 0.005 (sens 1) a ~0.00005 (sens 10).
 // La sensibilità regola anche quanto deve essere brusco il salto di energia
 // (ratio: da 8x con sens 1 a 2x con sens 10; 4.7x a metà).
 function setSens() {
@@ -637,62 +679,67 @@ $('trkWin').oninput = () => {
 };
 
 async function startTracker() {
-  trkStream = await openMic($('trkStatus'));
-  if (!trkStream) return;
-  trkCtx = new (window.AudioContext || window.webkitAudioContext)();
-  await trkCtx.resume();
+  if (trkStream) return;
+  const stream = await openMic($('trkStatus'));
+  if (!stream) return;
+  if (!running || !trkOn) { stream.getTracks().forEach(t => t.stop()); return; }  // annullato nel frattempo
+  trkStream = stream;
   try {
-    const url = URL.createObjectURL(new Blob([ONSET_WORKLET], { type: 'application/javascript' }));
-    await trkCtx.audioWorklet.addModule(url);
+    if (workletCtx !== ctx) {        // il modulo va caricato una volta per AudioContext
+      const url = URL.createObjectURL(new Blob([ONSET_WORKLET], { type: 'application/javascript' }));
+      await ctx.audioWorklet.addModule(url);
+      workletCtx = ctx;
+    }
   } catch (e) {
     stopTracker();
     $('trkStatus').textContent = 'Questo browser non supporta AudioWorklet';
     return;
   }
-  trkNode = new AudioWorkletNode(trkCtx, 'onset', { numberOfOutputs: 1, outputChannelCount: [1] });
+  micLatency = trkStream.getAudioTracks()[0].getSettings().latency || 0;
+  trkNode = new AudioWorkletNode(ctx, 'onset', { numberOfOutputs: 1, outputChannelCount: [1] });
   trkNode.port.onmessage = e => onOnset(e.data);
   setSens();
-  const mute = trkCtx.createGain(); mute.gain.value = 0;   // il nodo deve arrivare all'uscita, ma in silenzio
-  trkSrc = trkCtx.createMediaStreamSource(trkStream);
+  trkMute = ctx.createGain(); trkMute.gain.value = 0;   // i nodi devono arrivare all'uscita, ma in silenzio
+  trkSrc = ctx.createMediaStreamSource(trkStream);
   trkSrc.connect(trkNode);
-  trkAn = trkCtx.createAnalyser(); trkAn.fftSize = 2048;
+  trkAn = ctx.createAnalyser(); trkAn.fftSize = 2048;
   trkSrc.connect(trkAn);
-  trkAn.connect(mute);
+  trkAn.connect(trkMute);
+  trkNode.connect(trkMute).connect(ctx.destination);
   trkLevelTimer = startLevel(trkAn, 'trkLevel');
-  trkNode.connect(mute).connect(trkCtx.destination);
-  $('trkStart').textContent = 'STOP'; $('trkStart').classList.add('running');
-  trkReset('tap');
+  // Ogni 50 ms controlla i battiti passati senza colpi (80 ms di grazia per il ritardo dei messaggi)
+  trkTimer = setInterval(() => {
+    if (running && trkStream && closeMisses(ctx.currentTime - micLatency - 0.08)) trkUpdate();
+  }, 50);
+  trkResetStats();
+  trkHint();
 }
 function stopTracker() {
-  trk.phase = 'idle';
   clearInterval(trkTimer);
   clearInterval(trkLevelTimer); $('trkLevel').style.width = '0';
   trkStream?.getTracks().forEach(t => t.stop());
-  trkCtx?.close();
-  trkCtx = trkStream = trkNode = trkSrc = trkAn = null;
-  $('trkStart').textContent = 'AVVIA'; $('trkStart').classList.remove('running');
-  $('trkTap').disabled = true;
+  trkSrc?.disconnect(); trkNode?.disconnect(); trkAn?.disconnect(); trkMute?.disconnect();
+  trkStream = trkNode = trkSrc = trkAn = trkMute = null;
+  trkHint();
 }
-$('trkStart').onclick = () => trkCtx ? stopTracker() : startTracker();
-$('trkReset').onclick = () => trkReset(trkCtx ? 'tap' : 'idle');
-trkReset('idle');
+$('trkReset').onclick = trkResetStats;
 
 // --- Schede ----------------------------------------------------------
-const TABS = { metro: 'metroView', tuner: 'tunerView', tracker: 'trackerView' };
+const TABS = { metro: 'metroView', tuner: 'tunerView' };
 function showTab(name) {
-  stop(); stopTuner(); stopTracker();      // mai audio e microfono insieme
+  stop(); stopTuner();                     // mai metronomo e accordatore insieme
   for (const [n, view] of Object.entries(TABS)) {
     $(view).classList.toggle('hidden', n !== name);
   }
   $('tabMetro').classList.toggle('active', name === 'metro');
   $('tabTuner').classList.toggle('active', name === 'tuner');
-  $('tabTracker').classList.toggle('active', name === 'tracker');
 }
 $('tabMetro').onclick = () => showTab('metro');
 $('tabTuner').onclick = () => showTab('tuner');
-$('tabTracker').onclick = () => showTab('tracker');
 
 buildBeats();
+drawPendulum(0);
+drawChart();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
 </body>
