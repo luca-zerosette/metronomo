@@ -436,12 +436,24 @@ $('mic').onclick = () => tunerRunning ? stopTuner() : startTuner();
       non conta come errore. La larghezza della finestra del gate si
       regola con lo slider "Finestra" (10-50% di battito).
 --------------------------------------------------------------- */
+/* Rilevatore di ATTACCHI (pennate), non di "suono forte":
+   - Ogni blocco (128 campioni, ~3 ms) misura l'energia del segnale derivato:
+     la derivata esalta il "clic" della plettrata, ricco di alte frequenze.
+   - env = inviluppo di picco: segue subito le salite e scende piano
+     (si dimezza in ~40 ms). Una nota che sfuma non supera mai il proprio
+     inviluppo, quindi il fading out NON genera colpi.
+   - Colpo = l'energia attuale supera di "ratio" volte l'inviluppo di ~8 ms
+     prima: un salto improvviso, che c'è anche se l'accordo precedente
+     sta ancora suonando.
+   - Dopo un colpo, 90 ms di pausa per non contare due volte la stessa pennata. */
 const ONSET_WORKLET = `
 class OnsetProc extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.prev = 0; this.slow = 0; this.last = -1; this.min = 0.02;
-    this.port.onmessage = e => { this.min = e.data.min; };
+    this.prev = 0; this.last = -1; this.min = 0.002; this.ratio = 4;
+    this.env = 0; this.hist = new Float32Array(3);   // inviluppo degli ultimi 3 blocchi
+    this.decay = Math.pow(0.5, 128 / sampleRate / 0.04);
+    this.port.onmessage = e => { this.min = e.data.min; this.ratio = e.data.ratio; };
   }
   process(inputs) {
     const x = inputs[0][0];
@@ -449,12 +461,14 @@ class OnsetProc extends AudioWorkletProcessor {
     let s = 0, p = this.prev;
     for (let i = 0; i < x.length; i++) { const d = x[i] - p; p = x[i]; s += d * d; }
     this.prev = p;
-    const rms = Math.sqrt(s / x.length);
-    if (rms > this.min && rms > 3 * this.slow && currentTime - this.last > 0.12) {
+    const e = s / x.length;                           // energia del blocco
+    const ref = this.hist[0];                         // inviluppo di ~8 ms fa
+    if (e > this.min * this.min && e > this.ratio * ref && currentTime - this.last > 0.09) {
       this.last = currentTime;
       this.port.postMessage(currentTime);
     }
-    this.slow = this.slow * 0.99 + rms * 0.01;
+    this.env = Math.max(e, this.env * this.decay);
+    this.hist.copyWithin(0, 1); this.hist[2] = this.env;
     return true;
   }
 }
@@ -606,7 +620,15 @@ function drawChart() {
 // Soglia assoluta sul segnale DERIVATO (che attenua molto le basse frequenze):
 // scala logaritmica da 0.005 (sens 1) a ~0.00005 (sens 10). Il rumore di fondo
 // è già filtrato dal confronto con la media lenta (rms > 3 * slow) nel worklet.
-function setSens() { trkNode?.port.postMessage({ min: 0.005 * Math.pow(10, -(+$('trkSens').value - 1) / 4.5) }); }
+// La sensibilità regola anche quanto deve essere brusco il salto di energia
+// (ratio: da 8x con sens 1 a 2x con sens 10; 4.7x a metà).
+function setSens() {
+  const s = +$('trkSens').value;
+  trkNode?.port.postMessage({
+    min: 0.005 * Math.pow(10, -(s - 1) / 4.5),
+    ratio: 8 * Math.pow(0.25, (s - 1) / 9)
+  });
+}
 $('trkSens').oninput = setSens;
 $('trkWin').oninput = () => {
   WINDOW = +$('trkWin').value / 100;
