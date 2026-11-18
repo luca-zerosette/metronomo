@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Metronomo">
+<meta name="theme-color" content="#111111">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Metronomo</title>
+<style>
+  :root { --bg:#111; --fg:#f2f2f2; --accent:#ff9f0a; --dim:#3a3a3c; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin:0; min-height:100dvh; background:var(--bg); color:var(--fg);
+    font-family:-apple-system, system-ui, sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px;
+    padding: calc(env(safe-area-inset-top) + 64px) 20px env(safe-area-inset-bottom);
+    user-select:none; -webkit-user-select:none;
+  }
+  #bpm { font-size:96px; font-weight:200; font-variant-numeric:tabular-nums; line-height:1; }
+  #bpmLabel { opacity:.6; letter-spacing:.2em; font-size:14px; text-align:center; }
+  .row { display:flex; align-items:center; gap:16px; width:100%; max-width:380px; }
+  input[type=range] { flex:1; accent-color:var(--accent); height:40px; }
+  button.round {
+    width:52px; height:52px; border-radius:50%; border:0; background:var(--dim);
+    color:var(--fg); font-size:28px;
+  }
+  button.round:active { background:#555; }
+  #beats { display:flex; gap:12px; height:28px; }
+  .dot { width:24px; height:24px; border-radius:50%; background:var(--dim); transition:background .05s; }
+  .dot.on { background:var(--accent); }
+  .dot.accent.on { background:#fff; }
+  #play {
+    width:140px; height:140px; border-radius:50%; border:0;
+    background:var(--accent); color:#000; font-size:22px; font-weight:600;
+  }
+  #play.running { background:#ff453a; color:#fff; }
+  select { background:var(--dim); color:var(--fg); border:0; border-radius:10px; padding:10px 14px; font-size:17px; }
+  #tabs { display:flex; gap:8px; position:absolute; top:calc(env(safe-area-inset-top) + 12px); }
+  #tabs button { background:var(--dim); color:var(--fg); border:0; border-radius:20px; padding:8px 14px; font-size:15px; }
+  #tabs button.active { background:var(--accent); color:#000; }
+  .view { display:flex; flex-direction:column; align-items:center; gap:28px; width:100%; }
+  .hidden { display:none; }
+  #note { font-size:110px; font-weight:200; line-height:1; }
+  #freq, #cents { opacity:.6; font-size:16px; text-align:center; }
+  #meter { position:relative; width:100%; max-width:340px; height:44px; background:var(--dim); border-radius:22px; overflow:hidden; }
+  #center { position:absolute; left:50%; top:0; bottom:0; width:2px; background:#888; }
+  #needle { position:absolute; left:50%; top:4px; bottom:4px; width:8px; margin-left:-4px; border-radius:4px; background:var(--accent); transition:left .08s, background .1s; }
+  #needle.ok { background:#30d158; }
+  #strings { display:flex; gap:10px; }
+  .str { width:44px; height:44px; border-radius:50%; background:var(--dim); display:flex; align-items:center; justify-content:center; font-weight:600; }
+  .str.near { background:var(--accent); color:#000; }
+  #mic { width:200px; height:64px; border-radius:32px; border:0; background:var(--accent); color:#000; font-size:17px; font-weight:600; }
+  #mic.running { background:#ff453a; color:#fff; }
+  #trackerView { gap:14px; }
+  #trkStatus { text-align:center; opacity:.8; font-size:16px; min-height:40px; max-width:340px; }
+  #trkTap { width:130px; height:130px; border-radius:50%; border:0; background:var(--accent); color:#000; font-size:22px; font-weight:600; touch-action:manipulation; }
+  #trkTap:disabled { background:var(--dim); color:#777; }
+  #trkDev { font-size:64px; font-weight:200; line-height:1; font-variant-numeric:tabular-nums; }
+  #trkDev.good { color:#30d158; }
+  #trkStats { white-space:pre-line; text-align:center; opacity:.7; font-size:15px; min-height:64px; }
+  #trkChart { width:340px; height:150px; background:#1c1c1e; border-radius:12px; }
+  #trkStart, #trkReset { border:0; border-radius:12px; padding:12px 22px; font-size:17px; font-weight:600; background:var(--dim); color:var(--fg); }
+  #trkStart.running { background:#ff453a; }
+  .level { width:100%; max-width:340px; height:8px; background:var(--dim); border-radius:4px; overflow:hidden; }
+  .level > div { height:100%; width:0; background:#30d158; transition:width .08s; }
+  #tap { background:var(--dim); color:var(--fg); border:0; border-radius:12px; padding:12px 24px; font-size:17px; }
+</style>
+</head>
+<body>
+  <div id="tabs">
+    <button id="tabMetro" class="active">Metronomo</button>
+    <button id="tabTuner">Accordatore</button>
+    <button id="tabTracker">Tracker</button>
+  </div>
+
+  <div class="view" id="metroView">
+  <div>
+    <div id="bpm">120</div>
+    <div id="bpmLabel">BPM</div>
+  </div>
+
+  <div class="row">
+    <button class="round" id="minus">−</button>
+    <input type="range" id="slider" min="30" max="250" value="120">
+    <button class="round" id="plus">+</button>
+  </div>
+
+  <div class="row" style="justify-content:center">
+    <label>Tempo <select id="sig"></select></label>
+    <button id="tap">TAP</button>
+  </div>
+
+  <div id="beats"></div>
+
+  <button id="play">START</button>
+  </div>
+
+  <div class="view hidden" id="tunerView">
+    <div id="note">–</div>
+    <div id="freq">premi ATTIVA e suona una corda</div>
+    <div id="meter">
+      <div id="center"></div>
+      <div id="needle"></div>
+    </div>
+    <div id="cents">0 cent</div>
+    <div id="strings"></div>
+    <div class="level" title="Livello del microfono"><div id="tunLevel"></div></div>
+    <button id="mic">ATTIVA MICROFONO</button>
+  </div>
+
+  <div class="view hidden" id="trackerView">
+    <div id="trkStatus"></div>
+    <div class="level" title="Livello del microfono"><div id="trkLevel"></div></div>
+    <button id="trkTap" disabled>TAP 0/8</button>
+    <div id="trkDev">–</div>
+    <canvas id="trkChart"></canvas>
+    <div id="trkStats"></div>
+    <div class="row">
+      <span style="opacity:.6;font-size:14px;width:120px">Sensibilità</span>
+      <input type="range" id="trkSens" min="1" max="10" value="5">
+    </div>
+    <div class="row">
+      <span style="opacity:.6;font-size:14px;width:120px">Finestra <span id="trkWinVal">30%</span></span>
+      <input type="range" id="trkWin" min="10" max="50" step="5" value="30">
+    </div>
+    <div class="row" style="justify-content:center">
+      <button id="trkStart">AVVIA</button>
+      <button id="trkReset">RICOMINCIA</button>
+    </div>
+  </div>
+
+<script>
+/* ---------------------------------------------------------------
+   METRONOMO - spiegazione didattica
+
+   Problema: setInterval/setTimeout in JavaScript NON sono precisi
+   (possono slittare di decine di ms), quindi il metronomo "balla".
+
+   Soluzione classica ("A Tale of Two Clocks", Chris Wilson):
+   - L'orologio dell'audio (AudioContext.currentTime) è preciso.
+   - Un timer JS impreciso gira spesso (ogni 25 ms) e guarda un po'
+     in avanti (100 ms): tutti i click che cadono in quella finestra
+     vengono PROGRAMMATI sull'orologio audio con un tempo esatto.
+--------------------------------------------------------------- */
+
+let ctx = null;            // AudioContext (si crea al primo tocco: regola iOS)
+let bpm = 120;
+let beatsPerBar = 4;
+let running = false;
+let nextNoteTime = 0;      // quando suonerà il prossimo click (tempo audio)
+let currentBeat = 0;       // 0..beatsPerBar-1
+let timerId = null;
+let wakeLock = null;
+const LOOKAHEAD_MS = 25;       // ogni quanto gira lo scheduler
+const SCHEDULE_AHEAD_S = 0.1;  // quanto avanti programmiamo
+const visualQueue = [];        // {beat, time} per sincronizzare i pallini
+
+const $ = id => document.getElementById(id);
+
+// --- Suono: un breve "bip" generato con un oscillatore ---------------
+function playClick(time, accent) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.frequency.value = accent ? 1500 : 1000;   // primo battito più acuto
+  gain.gain.setValueAtTime(1, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05); // decadimento rapido
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(time);
+  osc.stop(time + 0.06);
+}
+
+// --- Scheduler -------------------------------------------------------
+function scheduler() {
+  while (nextNoteTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
+    const accent = currentBeat === 0;
+    playClick(nextNoteTime, accent);
+    visualQueue.push({ beat: currentBeat, time: nextNoteTime });
+    nextNoteTime += 60 / bpm;                       // durata di un battito
+    currentBeat = (currentBeat + 1) % beatsPerBar;
+  }
+}
+
+// --- Grafica: si aggiorna ad ogni frame, accende il pallino giusto ----
+function draw() {
+  while (visualQueue.length && visualQueue[0].time <= ctx.currentTime) {
+    highlight(visualQueue.shift().beat);
+  }
+  if (running) requestAnimationFrame(draw);
+}
+function highlight(beat) {
+  [...$('beats').children].forEach((d, i) => d.classList.toggle('on', i === beat));
+}
+
+// --- Start / Stop ----------------------------------------------------
+async function start() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  await ctx.resume();                // iOS: serve un gesto dell'utente
+  running = true;
+  currentBeat = 0;
+  nextNoteTime = ctx.currentTime + 0.05;
+  timerId = setInterval(scheduler, LOOKAHEAD_MS);
+  requestAnimationFrame(draw);
+  $('play').textContent = 'STOP';
+  $('play').classList.add('running');
+  try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+}
+function stop() {
+  running = false;
+  clearInterval(timerId);
+  visualQueue.length = 0;
+  highlight(-1);
+  $('play').textContent = 'START';
+  $('play').classList.remove('running');
+  wakeLock?.release(); wakeLock = null;
+}
+
+// --- Interfaccia -----------------------------------------------------
+function setBpm(v) {
+  bpm = Math.max(30, Math.min(250, Math.round(v)));
+  $('bpm').textContent = bpm;
+  $('slider').value = bpm;
+}
+function buildBeats() {
+  $('beats').innerHTML = '';
+  for (let i = 0; i < beatsPerBar; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' accent' : '');
+    $('beats').appendChild(d);
+  }
+}
+['2/4','3/4','4/4','5/4','6/8'].forEach(s => {
+  const o = document.createElement('option');
+  o.value = parseInt(s); o.textContent = s;
+  if (s === '4/4') o.selected = true;
+  $('sig').appendChild(o);
+});
+$('sig').onchange = e => { beatsPerBar = +e.target.value; currentBeat = 0; buildBeats(); };
+$('slider').oninput = e => setBpm(+e.target.value);
+$('minus').onclick = () => setBpm(bpm - 1);
+$('plus').onclick  = () => setBpm(bpm + 1);
+$('play').onclick  = () => running ? stop() : start();
+
+// TAP tempo: media degli ultimi intervalli tra i tocchi
+let taps = [];
+$('tap').onclick = () => {
+  const now = performance.now();
+  if (taps.length && now - taps[taps.length - 1] > 2000) taps = [];
+  taps.push(now);
+  taps = taps.slice(-6);
+  if (taps.length > 1) {
+    const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+    setBpm(60000 / avg);
+  }
+};
+
+// Se la pagina torna visibile, riprende il wake lock
+document.addEventListener('visibilitychange', async () => {
+  if (running && document.visibilityState === 'visible') {
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+  }
+});
+
+/* ---------------------------------------------------------------
+   ACCORDATORE - spiegazione didattica
+
+   1. Il microfono (getUserMedia) dà un flusso audio; un AnalyserNode
+      ci fornisce gli ultimi campioni dell'onda.
+   2. AUTOCORRELAZIONE: confrontiamo l'onda con se stessa spostata di
+      "lag" campioni. Quando lag = periodo della nota, l'onda si
+      sovrappone a se stessa e la correlazione è massima.
+      frequenza = sampleRate / lag
+   3. Dalla frequenza si ricava la nota: semitoni = 12 * log2(f/440)
+      e i "cent" (centesimi di semitono) dicono quanto siamo stonati.
+--------------------------------------------------------------- */
+const GUITAR = [['E2',82.41],['A2',110],['D3',146.83],['G3',196],['B3',246.94],['E4',329.63]];
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+let micStream = null, analyser = null, tunerCtx = null, tunerRunning = false, frame = 0;
+// Riferimenti ai nodi audio: se nessuna variabile li tiene, il browser può
+// eliminarli (garbage collection) dopo pochi secondi e il microfono "si spegne".
+let tunerSrc = null, trkSrc = null, trkAn = null;
+const buf = new Float32Array(2048);
+
+GUITAR.forEach(([n]) => {
+  const d = document.createElement('div');
+  d.className = 'str'; d.textContent = n[0]; d.dataset.n = n;
+  $('strings').appendChild(d);
+});
+
+// Restituisce la frequenza stimata (Hz) oppure -1 se non c'è un suono chiaro
+function detectPitch(x, sr) {
+  const N = x.length;
+  let rms = 0;
+  for (let i = 0; i < N; i++) rms += x[i] * x[i];
+  if (Math.sqrt(rms / N) < 0.002) return -1;           // troppo silenzio (il controllo nsdf sotto scarta il rumore)
+  const minLag = Math.floor(sr / 500), maxLag = Math.floor(sr / 60);
+  const half = N - maxLag;                              // finestra di confronto
+  const nsdf = new Float32Array(maxLag + 1);
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let r = 0, m = 0;
+    for (let i = 0; i < half; i++) {
+      r += x[i] * x[i + lag];
+      m += x[i] * x[i] + x[i + lag] * x[i + lag];
+    }
+    nsdf[lag] = m ? 2 * r / m : 0;                      // normalizzata: -1..1
+  }
+  // primo picco "alto" (evita gli errori di ottava)
+  let max = 0;
+  for (let l = minLag; l <= maxLag; l++) if (nsdf[l] > max) max = nsdf[l];
+  if (max < 0.8) return -1;
+  let lag = -1;
+  for (let l = minLag + 1; l < maxLag; l++) {
+    if (nsdf[l] > 0.9 * max && nsdf[l] >= nsdf[l - 1] && nsdf[l] >= nsdf[l + 1]) { lag = l; break; }
+  }
+  if (lag < 0) return -1;
+  // interpolazione parabolica per precisione sotto il campione
+  const a = nsdf[lag - 1], b = nsdf[lag], c = nsdf[lag + 1];
+  const shift = (a - c) / (2 * (a - 2 * b + c) || 1);
+  return sr / (lag + shift);
+}
+
+function tunerLoop() {
+  if (!tunerRunning) return;
+  if (frame++ % 2 === 0) {                              // ~30 analisi/s
+    analyser.getFloatTimeDomainData(buf);
+    const f = detectPitch(buf, tunerCtx.sampleRate);
+    if (f > 0) showPitch(f);
+  }
+  requestAnimationFrame(tunerLoop);
+}
+
+function showPitch(f) {
+  const midi = Math.round(69 + 12 * Math.log2(f / 440));
+  const exact = 440 * Math.pow(2, (midi - 69) / 12);
+  const cents = 1200 * Math.log2(f / exact);
+  $('note').textContent = NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+  $('freq').textContent = f.toFixed(1) + ' Hz';
+  $('cents').textContent = (cents > 0 ? '+' : '') + cents.toFixed(0) + ' cent';
+  const pos = 50 + Math.max(-50, Math.min(50, cents)) * 0.9;  // -50..+50 cent
+  $('needle').style.left = pos + '%';
+  $('needle').classList.toggle('ok', Math.abs(cents) < 5);
+  // evidenzia la corda più vicina
+  let best = null, bd = 1e9;
+  GUITAR.forEach(([n, hz]) => { const d = Math.abs(1200 * Math.log2(f / hz)); if (d < bd) { bd = d; best = n; } });
+  document.querySelectorAll('.str').forEach(s => s.classList.toggle('near', s.dataset.n === best && bd < 300));
+}
+
+// --- Microfono: apertura con messaggi d'errore chiari + barra di livello ---
+async function openMic(statusEl) {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    statusEl.textContent = 'Microfono non disponibile: apri la pagina da https:// o da localhost';
+    return null;
+  }
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  } catch (e) {
+    statusEl.textContent =
+      e.name === 'NotAllowedError' ? 'Permesso microfono negato: consentilo dall\'icona nella barra degli indirizzi' :
+      e.name === 'NotFoundError'   ? 'Nessun microfono trovato' :
+      e.name === 'NotReadableError' ? 'Il microfono è occupato da un\'altra app' :
+      'Errore microfono: ' + e.name;
+    return null;
+  }
+}
+// Aggiorna una barra con il livello (dB) letto da un AnalyserNode; restituisce l'id del timer
+function startLevel(an, barId) {
+  const b = new Float32Array(an.fftSize);
+  return setInterval(() => {
+    an.getFloatTimeDomainData(b);
+    let s = 0; for (let i = 0; i < b.length; i++) s += b[i] * b[i];
+    const db = 20 * Math.log10(Math.sqrt(s / b.length) + 1e-9);      // -60 dB = vuoto, 0 dB = pieno
+    $(barId).style.width = Math.max(0, Math.min(100, (db + 60) / 60 * 100)) + '%';
+  }, 80);
+}
+let tunLevelTimer = null;
+
+async function startTuner() {
+  micStream = await openMic($('freq'));
+  if (!micStream) return;
+  tunerCtx = new (window.AudioContext || window.webkitAudioContext)();
+  await tunerCtx.resume();
+  analyser = tunerCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  tunerSrc = tunerCtx.createMediaStreamSource(micStream);
+  tunerSrc.connect(analyser);
+  // L'analyser deve arrivare all'uscita (in silenzio), altrimenti alcuni browser smettono di elaborarlo
+  const tunMute = tunerCtx.createGain(); tunMute.gain.value = 0;
+  analyser.connect(tunMute).connect(tunerCtx.destination);
+  tunLevelTimer = startLevel(analyser, 'tunLevel');
+  $('freq').textContent = 'suona una corda';
+  tunerRunning = true;
+  $('mic').textContent = 'STOP'; $('mic').classList.add('running');
+  tunerLoop();
+}
+function stopTuner() {
+  tunerRunning = false;
+  clearInterval(tunLevelTimer); $('tunLevel').style.width = '0';
+  micStream?.getTracks().forEach(t => t.stop());
+  tunerCtx?.close(); tunerCtx = null; micStream = null; tunerSrc = null;
+  $('mic').textContent = 'ATTIVA MICROFONO'; $('mic').classList.remove('running');
+}
+$('mic').onclick = () => tunerRunning ? stopTuner() : startTuner();
+
+/* ---------------------------------------------------------------
+   TRACKER - spiegazione didattica
+
+   1. Fase TAP: tocchi 8 volte il ritmo che vuoi tenere. Dagli 8 tocchi
+      ricaviamo il periodo T (secondi per battito) e una GRIGLIA di
+      battiti attesi:  t0 + k*T  (k = 0, 1, 2, ...).
+   2. Fase ASCOLTO: un AudioWorklet (codice che gira sul thread audio,
+      quindi con tempi precisi) ascolta il microfono e segnala i COLPI:
+      un colpo è un aumento improvviso di energia. Per esaltare
+      l'attacco si usa la differenza tra campioni consecutivi.
+   3. Due griglie, due compiti diversi:
+      - GRIGLIA ADATTIVA (segue il tuo tempo reale): serve solo a
+        decidere A QUALE battito appartiene un colpo. Parte dal
+        periodo T degli 8 tap e si aggiorna con la mediana degli
+        ultimi periodi misurati, così non perdiamo i colpi se
+        acceleri o rallenti. Si tengono solo i colpi entro ±30% di
+        battito dall'atteso adattivo; gli altri (rumori, note di
+        contorno, suddivisioni) vengono ignorati.
+      - GRIGLIA FISSA (quella degli 8 tap): serve a misurare l'ERRORE.
+           d = t - (t0 + k*T)
+        Se accelero, d diventa sempre più negativo; se rallento,
+        sempre più positivo: la deriva si vede direttamente.
+   4. Mostriamo l'errore in ms (+ = in ritardo, - = in anticipo),
+      media, deviazione standard (la tua stabilità) e i BPM attuali
+      (dalla griglia adattiva) rispetto alla base.
+   5. BATTITI VUOTI: se per un battito non arriva nessun colpo valido
+      (battuta di pausa) lo registriamo con errore 0, così una pausa
+      non conta come errore. La larghezza della finestra del gate si
+      regola con lo slider "Finestra" (10-50% di battito).
+--------------------------------------------------------------- */
+const ONSET_WORKLET = `
+class OnsetProc extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.prev = 0; this.slow = 0; this.last = -1; this.min = 0.02;
+    this.port.onmessage = e => { this.min = e.data.min; };
+  }
+  process(inputs) {
+    const x = inputs[0][0];
+    if (!x) return true;
+    let s = 0, p = this.prev;
+    for (let i = 0; i < x.length; i++) { const d = x[i] - p; p = x[i]; s += d * d; }
+    this.prev = p;
+    const rms = Math.sqrt(s / x.length);
+    if (rms > this.min && rms > 3 * this.slow && currentTime - this.last > 0.12) {
+      this.last = currentTime;
+      this.port.postMessage(currentTime);
+    }
+    this.slow = this.slow * 0.99 + rms * 0.01;
+    return true;
+  }
+}
+registerProcessor('onset', OnsetProc);`;
+
+let WINDOW = 0.3;       // configurabile con lo slider "Finestra"                      // frazione di battito entro cui un colpo è "atteso"
+let trkCtx = null, trkStream = null, trkNode = null;
+// T, t0: griglia FISSA (dai tap). Tm, lastK, lastT, pers: griglia ADATTIVA.
+let trkLevelTimer = null;
+let trkTimer = null;    // controlla periodicamente i battiti rimasti vuoti
+let trk = { phase: 'idle', taps: [], T: 0, t0: 0, Tm: 0, lastK: 7, lastT: 0, pers: [], pts: [], ignored: 0, missed: 0, started: false };
+
+const median = a => {
+  const s = [...a].sort((x, y) => x - y), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+function trkReset(phase) {
+  clearInterval(trkTimer);
+  trk = { phase, taps: [], T: 0, t0: 0, Tm: 0, lastK: 7, lastT: 0, pers: [], pts: [], ignored: 0, missed: 0, started: false };
+  $('trkTap').disabled = phase !== 'tap';
+  $('trkTap').textContent = 'TAP 0/8';
+  $('trkStatus').textContent = phase === 'tap'
+    ? 'Tocca 8 volte il ritmo che vuoi tenere'
+    : 'Premi AVVIA per usare il microfono';
+  $('trkDev').textContent = '–';
+  $('trkDev').className = '';
+  $('trkStats').textContent = '';
+  drawChart();
+}
+
+// Tap: pointerdown reagisce subito al tocco (click aspetta il rilascio)
+$('trkTap').onpointerdown = () => {
+  if (trk.phase !== 'tap' || !trkCtx) return;
+  const t = trkCtx.currentTime;            // stesso orologio dei colpi del microfono
+  if (trk.taps.length && t - trk.taps[trk.taps.length - 1] > 2.5) trk.taps = [];
+  trk.taps.push(t);
+  $('trkTap').textContent = 'TAP ' + trk.taps.length + '/8';
+  if (trk.taps.length === 8) {
+    const n = trk.taps;
+    trk.T = (n[7] - n[0]) / 7;                                   // periodo medio
+    trk.t0 = n.reduce((s, t, i) => s + t - i * trk.T, 0) / 8;    // fase media della griglia
+    trk.Tm = trk.T;                         // la griglia adattiva parte uguale a quella fissa
+    trk.lastK = 7;                          // ancora: l'ultimo tap (battito 7)
+    trk.lastT = trk.t0 + 7 * trk.T;
+    trk.phase = 'listen';
+    // Ogni 50 ms controlla se un battito è passato senza colpi (grazia di 80 ms per il ritardo dei messaggi)
+    trkTimer = setInterval(() => {
+      if (trk.phase === 'listen' && trkCtx && advanceMisses(trkCtx.currentTime - 0.08)) trkUpdate();
+    }, 50);
+    $('trkTap').disabled = true;
+    $('trkStatus').textContent = 'Base: ' + (60 / trk.T).toFixed(1) + ' BPM. Ora suona!';
+  }
+};
+
+// Battiti VUOTI (battute di pausa): se è passato un battito atteso più la finestra
+// senza nessun colpo valido, lo registriamo con errore nullo (0 ms) e avanziamo la
+// griglia adattiva. Si parte solo dopo il primo colpo valido, così hai il tempo
+// di cominciare a suonare dopo gli 8 tap.
+function advanceMisses(now) {
+  if (!trk.started) return false;
+  let changed = false;
+  while (now > trk.lastT + trk.Tm * (1 + WINDOW)) {
+    const k = trk.lastK + 1, ea = trk.lastT + trk.Tm;
+    trk.pts.push({ k, t: ea, d: 0, missed: true });
+    trk.missed++;
+    trk.lastK = k; trk.lastT = ea;
+    changed = true;
+  }
+  return changed;
+}
+
+function onOnset(t) {
+  if (trk.phase !== 'listen') return;
+  advanceMisses(t);                        // prima chiudi i battiti vuoti precedenti a questo colpo
+  // 1) A quale battito appartiene? Si guarda la griglia ADATTIVA, ancorata all'ultimo colpo valido.
+  const k = trk.lastK + Math.round((t - trk.lastT) / trk.Tm);
+  if (k <= trk.lastK) {                    // stesso battito di prima (o rumore dei tap): scarta
+    if (trk.pts.length) { trk.ignored++; trkUpdate(); }
+    return;
+  }
+  const expected = trk.lastT + (k - trk.lastK) * trk.Tm;
+  if (Math.abs(t - expected) > WINDOW * trk.Tm) { trk.ignored++; trkUpdate(); return; }
+  // 2) Colpo valido: l'ERRORE si misura sulla griglia FISSA (quella degli 8 tap)
+  const d = t - (trk.t0 + k * trk.T);
+  trk.pts.push({ k, t, d: d * 1000 });
+  trk.started = true;
+  // 3) Aggiorna la griglia adattiva: mediana degli ultimi 5 periodi per battito
+  trk.pers.push((t - trk.lastT) / (k - trk.lastK));
+  trk.Tm = median(trk.pers.slice(-5));
+  trk.lastK = k; trk.lastT = t;
+  trkUpdate();
+}
+
+function trkUpdate() {
+  const P = trk.pts;
+  if (P.length) {
+    const last = P[P.length - 1].d;
+    $('trkDev').textContent = (last > 0 ? '+' : '') + last.toFixed(0) + ' ms';
+    $('trkDev').className = Math.abs(last) < 25 ? 'good' : '';
+    const ds = P.map(p => p.d);
+    const mean = ds.reduce((a, b) => a + b, 0) / ds.length;
+    const sd = Math.sqrt(ds.reduce((a, b) => a + (b - mean) ** 2, 0) / ds.length);
+    let bpmTxt = '';
+    if (P.length > 1) {
+      const bpm = 60 / trk.Tm, base = 60 / trk.T;     // BPM dalla griglia adattiva
+      bpmTxt = '\nBPM attuale: ' + bpm.toFixed(1) + ' (' + ((bpm / base - 1) * 100).toFixed(1) + '% rispetto alla base)';
+    }
+    $('trkStats').textContent = 'Colpi validi: ' + (P.length - trk.missed) + ' · vuoti: ' + trk.missed + ' · ignorati: ' + trk.ignored +
+      '\nErrore medio: ' + mean.toFixed(0) + ' ms · Dev. std: ' + sd.toFixed(0) + ' ms' + bpmTxt;
+  } else {
+    $('trkStats').textContent = 'Colpi ignorati: ' + trk.ignored;
+  }
+  drawChart();
+}
+
+function drawChart() {
+  const c = $('trkChart'), g = c.getContext('2d');
+  const dpr = window.devicePixelRatio || 1, W = 340, H = 150;
+  if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  // ms sui bordi: almeno ±30% di battito, ma si allarga se la deriva fa crescere l'errore
+  const shown = trk.pts.slice(-40);
+  const range = Math.max(trk.T ? WINDOW * trk.T * 1000 : 150, ...shown.map(p => Math.abs(p.d) * 1.1));
+  const y = ms => H / 2 - ms / range * (H / 2 - 8);
+  g.lineWidth = 1;
+  g.strokeStyle = '#555';
+  g.beginPath(); g.moveTo(0, H / 2); g.lineTo(W, H / 2); g.stroke();          // zero = in tempo
+  g.setLineDash([4, 4]); g.strokeStyle = '#3a3a3c';
+  [range, -range].forEach(v => { g.beginPath(); g.moveTo(0, y(v)); g.lineTo(W, y(v)); g.stroke(); });
+  g.setLineDash([]);
+  g.fillStyle = '#888'; g.font = '11px sans-serif';
+  g.fillText('tardi', 6, 14); g.fillText('presto', 6, H - 6);
+  const P = trk.pts.slice(-40);
+  if (!P.length) return;
+  const step = (W - 20) / 39;
+  const xs = P.map((_, i) => W - 10 - (P.length - 1 - i) * step);
+  g.strokeStyle = '#ff9f0a'; g.lineWidth = 2; g.beginPath();
+  P.forEach((p, i) => i ? g.lineTo(xs[i], y(p.d)) : g.moveTo(xs[i], y(p.d)));
+  g.stroke();
+  P.forEach((p, i) => {
+    g.beginPath(); g.arc(xs[i], y(p.d), 4, 0, 7);
+    if (p.missed) { g.strokeStyle = '#888'; g.lineWidth = 1.5; g.stroke(); }   // battito vuoto: cerchio vuoto grigio
+    else { g.fillStyle = Math.abs(p.d) < 25 ? '#30d158' : '#ff9f0a'; g.fill(); }
+  });
+}
+
+// Soglia assoluta sul segnale DERIVATO (che attenua molto le basse frequenze):
+// scala logaritmica da 0.005 (sens 1) a ~0.00005 (sens 10). Il rumore di fondo
+// è già filtrato dal confronto con la media lenta (rms > 3 * slow) nel worklet.
+function setSens() { trkNode?.port.postMessage({ min: 0.005 * Math.pow(10, -(+$('trkSens').value - 1) / 4.5) }); }
+$('trkSens').oninput = setSens;
+$('trkWin').oninput = () => {
+  WINDOW = +$('trkWin').value / 100;
+  $('trkWinVal').textContent = $('trkWin').value + '%';
+  drawChart();
+};
+
+async function startTracker() {
+  trkStream = await openMic($('trkStatus'));
+  if (!trkStream) return;
+  trkCtx = new (window.AudioContext || window.webkitAudioContext)();
+  await trkCtx.resume();
+  try {
+    const url = URL.createObjectURL(new Blob([ONSET_WORKLET], { type: 'application/javascript' }));
+    await trkCtx.audioWorklet.addModule(url);
+  } catch (e) {
+    stopTracker();
+    $('trkStatus').textContent = 'Questo browser non supporta AudioWorklet';
+    return;
+  }
+  trkNode = new AudioWorkletNode(trkCtx, 'onset', { numberOfOutputs: 1, outputChannelCount: [1] });
+  trkNode.port.onmessage = e => onOnset(e.data);
+  setSens();
+  const mute = trkCtx.createGain(); mute.gain.value = 0;   // il nodo deve arrivare all'uscita, ma in silenzio
+  trkSrc = trkCtx.createMediaStreamSource(trkStream);
+  trkSrc.connect(trkNode);
+  trkAn = trkCtx.createAnalyser(); trkAn.fftSize = 2048;
+  trkSrc.connect(trkAn);
+  trkAn.connect(mute);
+  trkLevelTimer = startLevel(trkAn, 'trkLevel');
+  trkNode.connect(mute).connect(trkCtx.destination);
+  $('trkStart').textContent = 'STOP'; $('trkStart').classList.add('running');
+  trkReset('tap');
+}
+function stopTracker() {
+  trk.phase = 'idle';
+  clearInterval(trkTimer);
+  clearInterval(trkLevelTimer); $('trkLevel').style.width = '0';
+  trkStream?.getTracks().forEach(t => t.stop());
+  trkCtx?.close();
+  trkCtx = trkStream = trkNode = trkSrc = trkAn = null;
+  $('trkStart').textContent = 'AVVIA'; $('trkStart').classList.remove('running');
+  $('trkTap').disabled = true;
+}
+$('trkStart').onclick = () => trkCtx ? stopTracker() : startTracker();
+$('trkReset').onclick = () => trkReset(trkCtx ? 'tap' : 'idle');
+trkReset('idle');
+
+// --- Schede ----------------------------------------------------------
+const TABS = { metro: 'metroView', tuner: 'tunerView', tracker: 'trackerView' };
+function showTab(name) {
+  stop(); stopTuner(); stopTracker();      // mai audio e microfono insieme
+  for (const [n, view] of Object.entries(TABS)) {
+    $(view).classList.toggle('hidden', n !== name);
+  }
+  $('tabMetro').classList.toggle('active', name === 'metro');
+  $('tabTuner').classList.toggle('active', name === 'tuner');
+  $('tabTracker').classList.toggle('active', name === 'tracker');
+}
+$('tabMetro').onclick = () => showTab('metro');
+$('tabTuner').onclick = () => showTab('tuner');
+$('tabTracker').onclick = () => showTab('tracker');
+
+buildBeats();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
